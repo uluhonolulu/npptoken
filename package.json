@@ -1,0 +1,22 @@
+{
+  "name": "nanozavodik",
+  "version": "0.0.0",
+  "description": "Smart Contract for the PPL token",
+  "main": "truffle-config.js",
+  "directories": {
+    "test": "test"
+  },
+  "dependencies": {
+    "zeppelin-solidity": "^1.4.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "truffle test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://uluhonolulu@bitbucket.org/ppcrypto/pp.crypto.git"
+  },
+  "author": "Artem Smirnov",
+  "license": "ISC"
+}
