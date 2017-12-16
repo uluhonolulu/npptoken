@@ -1,107 +1,22 @@
 pragma solidity ^0.4.18;
-import '../node_modules/zeppelin-solidity/contracts/token/ERC20.sol';
+import '../node_modules/zeppelin-solidity/contracts/token/StandardToken.sol';
 import '../node_modules/zeppelin-solidity/contracts/math/Math.sol';
 import '../node_modules/zeppelin-solidity/contracts/math/SafeMath.sol';
-//import '../node_modules/zeppelin-solidity/contracts/ownership/Ownable.sol';
+import '../node_modules/zeppelin-solidity/contracts/ownership/Ownable.sol';
 
+contract PplToken is StandardToken {
+  string public constant name = "Nano Token";
+  string public constant symbol = "PPL";
+  uint8 public constant decimals = 18;
 
-
-/**
- * Standard ERC20 token with Short Hand Attack and approve() race condition mitigation.
- *
- * Based on code by FirstBlood:
- * https://github.com/Firstbloodio/token/blob/master/smart_contract/FirstBloodToken.sol
- */
-contract StandardToken is ERC20, SafeMath {
-
-  mapping(address => uint) balances;
-  mapping (address => mapping (address => uint)) allowed;
-
-  // Interface marker
-  bool public constant isToken = true;
+  uint256 public constant INITIAL_SUPPLY = 10000 * (10 ** uint256(decimals));
 
   /**
-   *
-   * Fix for the ERC20 short address attack
-   *
-   * http://vessenes.com/the-erc20-short-address-attack-explained/
+   * @dev Constructor that gives msg.sender all of existing tokens.
    */
-  modifier onlyPayloadSize(uint size) {
-     if(msg.data.length < size + 4) {
-       throw;
-     }
-     _;
-  }
-
-  function transfer(address _to, uint _value) onlyPayloadSize(2 * 32) returns (bool success) {
-    balances[msg.sender] = safeSub(balances[msg.sender], _value);
-    balances[_to] = safeAdd(balances[_to], _value);
-    Transfer(msg.sender, _to, _value);
-    return true;
-  }
-
-  function transferFrom(address _from, address _to, uint _value)  returns (bool success) {
-    var _allowance = allowed[_from][msg.sender];
-
-    // Check is not needed because safeSub(_allowance, _value) will already throw if this condition is not met
-    // if (_value > _allowance) throw;
-
-    balances[_to] = safeAdd(balances[_to], _value);
-    balances[_from] = safeSub(balances[_from], _value);
-    allowed[_from][msg.sender] = safeSub(_allowance, _value);
-    Transfer(_from, _to, _value);
-    return true;
-  }
-
-  function balanceOf(address _owner) constant returns (uint balance) {
-    return balances[_owner];
-  }
-
-  function approve(address _spender, uint _value) returns (bool success) {
-
-    // To change the approve amount you first have to reduce the addresses`
-    //  allowance to zero by calling `approve(_spender, 0)` if it is not
-    //  already 0 to mitigate the race condition described here:
-    //  https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
-    if ((_value != 0) && (allowed[msg.sender][_spender] != 0)) throw;
-
-    allowed[msg.sender][_spender] = _value;
-    Approval(msg.sender, _spender, _value);
-    return true;
-  }
-
-  function allowance(address _owner, address _spender) constant returns (uint remaining) {
-    return allowed[_owner][_spender];
-  }
-
-}
-
-
-
-/*
- * Ownable
- *
- * Base contract with an owner.
- * Provides onlyOwner modifier, which prevents function from running if it is called by anyone other than the owner.
- */
-contract Ownable {
-  address public owner;
-
-  function Ownable() {
-    owner = msg.sender;
-  }
-
-  modifier onlyOwner() {
-    if (msg.sender != owner) {
-      throw;
-    }
-    _;
-  }
-
-  function transferOwnership(address newOwner) onlyOwner {
-    if (newOwner != address(0)) {
-      owner = newOwner;
-    }
+  function PplToken() public {
+    totalSupply = INITIAL_SUPPLY;
+    balances[msg.sender] = INITIAL_SUPPLY;
   }
 
 }
@@ -177,26 +92,17 @@ contract TokenVault is Ownable {
    * @param _tokensToBeAllocated Total number of tokens this vault will hold - including decimal multiplcation
    *
    */
-  function TokenVault(address _owner, uint _freezeEndsAt, StandardToken _token, uint _tokensToBeAllocated) {
+  function TokenVault(address _owner, uint _freezeEndsAt, StandardToken _token, uint _tokensToBeAllocated) public {
 
     owner = _owner;
 
-    // Invalid owenr
-    if(owner == 0) {
-      throw;
-    }
+    // Invalid owner
+    require(owner != 0);
 
     token = _token;
 
-    // Check the address looks like a token contract
-    if(!token.isToken()) {
-      throw;
-    }
-
     // Give argument
-    if(_freezeEndsAt == 0) {
-      throw;
-    }
+    require(_freezeEndsAt != 0);
 
     freezeEndsAt = _freezeEndsAt;
     tokensToBeAllocated = _tokensToBeAllocated;
@@ -205,20 +111,11 @@ contract TokenVault is Ownable {
   /**
    * Add a presale participatin allocation.
    */
-  function setInvestor(address investor, uint amount) public onlyOwner {
+  function setInvestor(address investor, uint amount) public onlyOwner neverLocked {
 
-    if(lockedAt > 0) {
-      // Cannot add new investors after the vault is locked
-      throw;
-    }
+    require(amount > 0);              // No empty buys
+    require(balances[investor] == 0); // Don't allow multiple calls for a single investor
 
-    if(amount == 0) throw; // No empty buys
-
-    // Don't allow reset
-    bool existing = balances[investor] > 0;
-    if(existing) {
-      throw;
-    }
 
     balances[investor] = amount;
 
@@ -239,19 +136,13 @@ contract TokenVault is Ownable {
    * Checks are in place to prevent creating a vault that is locked with incorrect token balances.
    *
    */
-  function lock() onlyOwner {
+  function lock() public onlyOwner neverLocked {
 
-    if(lockedAt > 0) {
-      throw; // Already locked
-    }
-
-    // Do not lock the vault if the given tokens on this contract
+    // Do not lock the vault if we allocated more than we have tokens
     // Note that we do not check != so that we can top up little bit extra
     // due to decimal rounding and having issues with it.
     // This extras will be lost forever when the vault is locked.
-    if(token.balanceOf(address(this)) < tokensAllocatedTotal) {
-      throw;
-    }
+    require(token.balanceOf(address(this)) >= tokensAllocatedTotal);
 
     lockedAt = now;
 
@@ -261,10 +152,7 @@ contract TokenVault is Ownable {
   /**
    * In the case locking failed, then allow the owner to reclaim the tokens on the contract.
    */
-  function recoverFailedLock() onlyOwner {
-    if(lockedAt > 0) {
-      throw;
-    }
+  function recoverFailedLock() public onlyOwner neverLocked {
 
     // Transfer all tokens on this contract back to the owner
     token.transfer(owner, token.balanceOf(address(this)));
@@ -281,26 +169,14 @@ contract TokenVault is Ownable {
    * Claim N bought tokens to the investor as the msg sender.
    *
    */
-  function claim() {
+  function claim() public {
 
     address investor = msg.sender;
 
-    if(lockedAt == 0) {
-      throw; // We were never locked
-    }
-
-    if(now < freezeEndsAt) {
-      throw; // Trying to claim early
-    }
-
-    if(balances[investor] == 0) {
-      // Not our investor
-      throw;
-    }
-
-    if(claimed[investor] > 0) {
-      throw; // Already claimed
-    }
+    State currentState = getState();
+    require(currentState == State.Distributing);  //lock period ended
+    require(balances[investor] > 0);              //we know this investor
+    require(claimed[investor] == 0);              //haven't claimed yet
 
     uint amount = balances[investor];
 
@@ -317,13 +193,22 @@ contract TokenVault is Ownable {
    * Resolve the contract umambigious state.
    */
   function getState() public constant returns(State) {
-    if(lockedAt == 0) {
+    if (lockedAt == 0) {
       return State.Loading;
-    } else if(now > freezeEndsAt) {
+    } else if (now > freezeEndsAt) {
       return State.Distributing;
     } else {
       return State.Holding;
     }
   }
+
+  /**
+   * Throws if locked
+   */
+  modifier neverLocked() {
+    require(lockedAt == 0);
+    _;
+  }
+  
 
 }
