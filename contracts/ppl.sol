@@ -5,11 +5,11 @@ import '../node_modules/zeppelin-solidity/contracts/math/SafeMath.sol';
 import '../node_modules/zeppelin-solidity/contracts/ownership/Ownable.sol';
 
 contract PplToken is StandardToken {
-  string public constant name = "Nano Token";
+  string public constant name = "PowerPlant Token";
   string public constant symbol = "PPL";
   uint8 public constant decimals = 18;
 
-  uint256 public constant INITIAL_SUPPLY = 10000 * (10 ** uint256(decimals));
+  uint256 public constant INITIAL_SUPPLY = 7000000 * (10 ** uint256(decimals));
 
   /**
    * @dev Constructor that gives msg.sender all of existing tokens.
@@ -210,5 +210,5 @@ contract TokenVault is Ownable {
     _;
   }
   
-
+  //TODO: fallback function
 }
