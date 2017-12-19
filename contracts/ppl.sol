@@ -7,9 +7,9 @@ import '../node_modules/zeppelin-solidity/contracts/ownership/Ownable.sol';
 contract PplToken is StandardToken {
   string public constant name = "PowerPlant Token";
   string public constant symbol = "PPL";
-  uint8 public constant decimals = 18;
-
+  uint8 public constant decimals = 18;    //TODO: 0?
   uint256 public constant INITIAL_SUPPLY = 7000000 * (10 ** uint256(decimals));
+  address public contractAddress; //this contract's address
 
   /**
    * @dev Constructor that gives msg.sender all of existing tokens.
@@ -17,8 +17,19 @@ contract PplToken is StandardToken {
   function PplToken() public {
     totalSupply = INITIAL_SUPPLY;
     balances[msg.sender] = INITIAL_SUPPLY;
+    contractAddress = this;
   }
 
+  //override transfer to ensure we don't receive any tokens
+  function transfer(address _to, uint256 _value) public returns (bool) {
+    require(_to != contractAddress);
+    return super.transfer(_to, _value);
+  }
+
+  //override the fallback function to ensure we don't accept ether
+  function() public payable {
+      revert();
+  }
 }
 
 
