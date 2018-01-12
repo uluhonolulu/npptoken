@@ -4,11 +4,11 @@ import '../node_modules/zeppelin-solidity/contracts/math/Math.sol';
 import '../node_modules/zeppelin-solidity/contracts/math/SafeMath.sol';
 import '../node_modules/zeppelin-solidity/contracts/ownership/Ownable.sol';
 
-contract PplToken is StandardToken {
-  string public constant name = "PowerPlant Token";
-  string public constant symbol = "PPL";
-  uint8 public constant decimals = 18;    //TODO: 0?
-  uint256 public constant INITIAL_SUPPLY = 7000000 * (10 ** uint256(decimals));
+contract NppToken is StandardToken {
+  string public constant name = "Nanopowder Token";
+  string public constant symbol = "NPP";
+  uint8 public constant decimals = 0; 
+  uint256 public constant INITIAL_SUPPLY = 20000000 * (10 ** uint256(decimals));  //20M tokens
   address public contractAddress; //this contract's address
 
   /**
@@ -49,7 +49,7 @@ contract PplToken is StandardToken {
  * - After the freeze time is over investors can call claim() from their address to get their tokens
  *
  */
-contract TokenVault is Ownable {
+contract CrowdSale is Ownable {
 
   /** How many investors we have now */
   uint public investorCount;
@@ -69,30 +69,14 @@ contract TokenVault is Ownable {
   /** How many tokens investors have claimed */
   mapping(address => uint) public claimed;
 
-  /** When our claim freeze is over (UNIX timestamp) */
-  uint public freezeEndsAt;
-
-  /** When this vault was locked (UNIX timestamp) */
-  uint public lockedAt;
-
   /** We can also define our own token, which will override the ICO one ***/
-  StandardToken public token;
-
-  /** What is our current state.
-   *
-   * Loading: Investor data is being loaded and contract not yet locked
-   * Holding: Holding tokens for investors
-   * Distributing: Freeze time is over, investors can claim their tokens
-   */
-  enum State{Unknown, Loading, Holding, Distributing}
+  NppToken public token;
 
   /** We allocated tokens for investor */
   event Allocated(address investor, uint value);
 
   /** We distributed tokens to an investor */
   event Distributed(address investors, uint count);
-
-  event Locked();
 
   /**
    * Create presale contract where lock up period is given days
@@ -103,11 +87,10 @@ contract TokenVault is Ownable {
    * @param _tokensToBeAllocated Total number of tokens this vault will hold - including decimal multiplcation
    *
    */
-  function TokenVault(address _owner, uint _freezeEndsAt, StandardToken _token, uint _tokensToBeAllocated) public {
+  function CrowdSale(address _owner, NppToken _token, uint _tokensToBeAllocated) public {
 
     owner = _owner;
 
-    // Invalid owner
     require(owner != 0);
 
     token = _token;
@@ -200,26 +183,6 @@ contract TokenVault is Ownable {
     Distributed(investor, amount);
   }
 
-  /**
-   * Resolve the contract umambigious state.
-   */
-  function getState() public constant returns(State) {
-    if (lockedAt == 0) {
-      return State.Loading;
-    } else if (now > freezeEndsAt) {
-      return State.Distributing;
-    } else {
-      return State.Holding;
-    }
-  }
 
-  /**
-   * Throws if locked
-   */
-  modifier neverLocked() {
-    require(lockedAt == 0);
-    _;
-  }
-  
   //TODO: fallback function
 }
