@@ -1,10 +1,10 @@
-pragma solidity ^0.4.18;
+pragma solidity ^0.4.19;
 import '../node_modules/zeppelin-solidity/contracts/token/StandardToken.sol';
 import '../node_modules/zeppelin-solidity/contracts/math/Math.sol';
 import '../node_modules/zeppelin-solidity/contracts/math/SafeMath.sol';
 import '../node_modules/zeppelin-solidity/contracts/ownership/Ownable.sol';
 
-contract NppToken is StandardToken {
+contract NppToken is StandardToken, Ownable {
   string public constant name = "Nanopowder Token";
   string public constant symbol = "NPP";
   uint8 public constant decimals = 0; 
@@ -26,6 +26,14 @@ contract NppToken is StandardToken {
     return super.transfer(_to, _value);
   }
 
+  /**
+   * burn investor's tokens
+   */
+  function burn(address _owner, uint256 _value) public onlyOwner {
+    require(_value > 0);
+    balances[_owner] = balances[_owner].sub(_value);
+  }
+
   //override the fallback function to ensure we don't accept ether
   function() public payable {
       revert();
@@ -40,116 +48,70 @@ contract NppToken is StandardToken {
  *
  * Steps
  *
- * - Prepare a spreadsheet for token allocation
+ * - Prepare a list of investors/amounts for token allocation
  * - Deploy this contract, with the sum to tokens to be distributed, from the owner account
- * - Call setInvestor for all investors from the owner account using a local script and CSV input
  * - Move tokensToBeAllocated in this contract usign StandardToken.transfer()
- * - Call lock from the owner account
- * - Wait until the freeze period is over
- * - After the freeze time is over investors can call claim() from their address to get their tokens
+ * - Investor confirms her address by sending 0.0ETH to this address
+ * - Call distribute for investor to give her the tokens
  *
  */
 contract CrowdSale is Ownable {
 
-  /** How many investors we have now */
-  uint public investorCount;
-
-  /** Sum from the spreadsheet how much tokens we should get on the contract. If the sum does not match at the time of the lock the vault is faulty and must be recreated.*/
-  uint public tokensToBeAllocated;
-
-  /** How many tokens investors have claimed so far */
-  uint public totalClaimed;
-
-  /** How many tokens our internal book keeping tells us to have at the time of lock() when all investor data has been loaded */
+  /** How many tokens have been distributed */
   uint public tokensAllocatedTotal;
 
-  /** How much we have allocated to the investors invested */
-  mapping(address => uint) public balances;
+  address[] private confirmedAddresses;
 
-  /** How many tokens investors have claimed */
-  mapping(address => uint) public claimed;
+  address[] private handledAddresses;  // the ones we distributed the tokens to
 
-  /** We can also define our own token, which will override the ICO one ***/
-  NppToken public token;
-
-  /** We allocated tokens for investor */
-  event Allocated(address investor, uint value);
-
-  /** We distributed tokens to an investor */
-  event Distributed(address investors, uint count);
+  NppToken private token;
 
   /**
-   * Create presale contract where lock up period is given days
+   * Create crowdsale contract where lock up period is given days
    *
-   * @param _owner Who can load investor data and lock
-   * @param _freezeEndsAt UNIX timestamp when the vault unlocks
+   * @param _owner Who can load investor data
    * @param _token Token contract address we are distributing
-   * @param _tokensToBeAllocated Total number of tokens this vault will hold - including decimal multiplcation
-   *
+    *
    */
-  function CrowdSale(address _owner, NppToken _token, uint _tokensToBeAllocated) public {
-
-    owner = _owner;
-
+  function CrowdSale(address _owner, NppToken _token) public {
     require(owner != 0);
-
+    owner = _owner;
     token = _token;
-
-    // Give argument
-    require(_freezeEndsAt != 0);
-
-    freezeEndsAt = _freezeEndsAt;
-    tokensToBeAllocated = _tokensToBeAllocated;
   }
 
   /**
-   * Add a presale participatin allocation.
+   * Send tokens to the investor
+   * @param _investor The investor's address for tokens
+   * @param _amount How many tokens we should send
    */
-  function setInvestor(address investor, uint amount) public onlyOwner neverLocked {
+  function distribute(address _investor, uint256 _amount) public onlyOwner returns (string) {
+    require(_amount > 0);              // No empty buys
 
-    require(amount > 0);              // No empty buys
-    require(balances[investor] == 0); // Don't allow multiple calls for a single investor
-
-
-    balances[investor] = amount;
-
-    investorCount++;
-
-    tokensAllocatedTotal += amount;
-
-    Allocated(investor, amount);
+    //verify that the address is confirmed
+    if (!isConfirmed(_investor)) {
+      return "NOT_CONFIRMED";
+    }
+    //verify that we haven't trasferred for this investor yet
+    if (isHandled(_investor)) {
+      return "DUPLICATE";
+    }    
+    //transfer the tokens
+    if(token.transfer(_investor, _amount)){
+      tokensAllocatedTotal += _amount;
+      handledAddresses.push(_investor);      
+      return "OK";
+    } else {
+      return "TRANSFER_FAILED"; //perhaps not enough tokens left?
+    }
   }
 
   /**
-   * Lock the vault.
-   *
-   *
-   * - All balances have been loaded in correctly
-   * - Tokens are transferred on this vault correctly
-   *
-   * Checks are in place to prevent creating a vault that is locked with incorrect token balances.
-   *
+   * Burn the investor's tokens
+   * @param _investor The Investor's address 
+   * @param _amount How many tokens to burn
    */
-  function lock() public onlyOwner neverLocked {
-
-    // Do not lock the vault if we allocated more than we have tokens
-    // Note that we do not check != so that we can top up little bit extra
-    // due to decimal rounding and having issues with it.
-    // This extras will be lost forever when the vault is locked.
-    require(token.balanceOf(address(this)) >= tokensAllocatedTotal);
-
-    lockedAt = now;
-
-    Locked();
-  }
-
-  /**
-   * In the case locking failed, then allow the owner to reclaim the tokens on the contract.
-   */
-  function recoverFailedLock() public onlyOwner neverLocked {
-
-    // Transfer all tokens on this contract back to the owner
-    token.transfer(owner, token.balanceOf(address(this)));
+  function burn(address _investor, uint256 _amount) public onlyOwner {
+    token.burn(_investor, _amount);
   }
 
   /**
@@ -160,29 +122,27 @@ contract CrowdSale is Ownable {
   }
 
   /**
-   * Claim N bought tokens to the investor as the msg sender.
-   *
+   * The fallback function is used for confirming the user's address
    */
-  function claim() public {
-
-    address investor = msg.sender;
-
-    State currentState = getState();
-    require(currentState == State.Distributing);  //lock period ended
-    require(balances[investor] > 0);              //we know this investor
-    require(claimed[investor] == 0);              //haven't claimed yet
-
-    uint amount = balances[investor];
-
-    claimed[investor] = amount;
-
-    totalClaimed += amount;
-
-    token.transfer(investor, amount);
-
-    Distributed(investor, amount);
+  function() public payable {
+    confirmedAddresses.push(msg.sender);
   }
 
+  function isConfirmed(address _address) public constant returns (bool) {
+    for (uint index = 0; index < confirmedAddresses.length; index++) {
+      if (confirmedAddresses[index] == _address) {
+        return true;
+      } 
+    }
+    return false;
+  }
 
-  //TODO: fallback function
+  function isHandled(address _address) private constant returns (bool) {
+    for (uint index = 0; index < handledAddresses.length; index++) {
+      if (handledAddresses[index] == _address) {
+        return true;
+      } 
+    }
+    return false;
+  }
 }
