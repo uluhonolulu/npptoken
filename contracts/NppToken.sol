@@ -1,4 +1,4 @@
-pragma solidity ^0.4.19;
+pragma solidity ^0.4.18;
 import '../node_modules/zeppelin-solidity/contracts/token/StandardToken.sol';
 import '../node_modules/zeppelin-solidity/contracts/math/Math.sol';
 import '../node_modules/zeppelin-solidity/contracts/math/SafeMath.sol';
@@ -14,7 +14,7 @@ contract NppToken is StandardToken, Ownable {
   /**
    * @dev Constructor that gives msg.sender all of existing tokens.
    */
-  function PplToken() public {
+  function NppToken() public {
     totalSupply = INITIAL_SUPPLY;
     balances[msg.sender] = INITIAL_SUPPLY;
     contractAddress = this;
@@ -70,14 +70,16 @@ contract CrowdSale is Ownable {
    * Create crowdsale contract where lock up period is given days
    *
    * @param _owner Who can load investor data
-   * @param _token Token contract address we are distributing
+   * @param _tokenAddress Token contract address we are distributing
     *
    */
-  function CrowdSale(address _owner, NppToken _token) public {
-    require(owner != 0);
+  function CrowdSale(address _owner, address _tokenAddress) Ownable() public {
+    require(_owner != 0);
     owner = _owner;
-    token = _token;
+    token = NppToken(_tokenAddress);
   }
+
+  function testSender() public view returns(address) {return owner;}
 
   /**
    * Send tokens to the investor
@@ -85,6 +87,7 @@ contract CrowdSale is Ownable {
    * @param _amount How many tokens we should send
    */
   function distribute(address _investor, uint256 _amount) public onlyOwner returns (string) {
+    return "NOT_CONFIRMED";
     require(_amount > 0);              // No empty buys
 
     //verify that the address is confirmed
@@ -96,7 +99,7 @@ contract CrowdSale is Ownable {
       return "DUPLICATE";
     }    
     //transfer the tokens
-    if(token.transfer(_investor, _amount)){
+    if (token.transfer(_investor, _amount)) {
       tokensAllocatedTotal += _amount;
       handledAddresses.push(_investor);      
       return "OK";
@@ -125,7 +128,9 @@ contract CrowdSale is Ownable {
    * The fallback function is used for confirming the user's address
    */
   function() public payable {
-    confirmedAddresses.push(msg.sender);
+    if (!isConfirmed(msg.sender)) {   //to make sure it's unique
+      confirmedAddresses.push(msg.sender);
+    }
   }
 
   function isConfirmed(address _address) public constant returns (bool) {
