@@ -34,9 +34,10 @@ contract NppToken is StandardToken, Ownable {
     balances[_owner] = balances[_owner].sub(_value);
   }
 
+uint public success;
   //override the fallback function to ensure we don't accept ether
   function() public payable {
-      revert();
+      success = 111;
   }
 }
 
@@ -60,26 +61,24 @@ contract CrowdSale is Ownable {
   /** How many tokens have been distributed */
   uint public tokensAllocatedTotal;
 
-  address[] private confirmedAddresses;
+  address[] public confirmedAddresses;
 
   address[] private handledAddresses;  // the ones we distributed the tokens to
 
   NppToken private token;
 
+ uint public success = 666;
+
   /**
-   * Create crowdsale contract where lock up period is given days
+   * Create crowdsale contract 
    *
-   * @param _owner Who can load investor data
    * @param _tokenAddress Token contract address we are distributing
     *
    */
-  function CrowdSale(address _owner, address _tokenAddress) Ownable() public {
-    require(_owner != 0);
-    owner = _owner;
+  function CrowdSale(address _tokenAddress) Ownable() public {
+    require(_tokenAddress != address(0));
     token = NppToken(_tokenAddress);
   }
-
-  function testSender() public view returns(address) {return owner;}
 
   /**
    * Send tokens to the investor
@@ -128,6 +127,10 @@ contract CrowdSale is Ownable {
    * The fallback function is used for confirming the user's address
    */
   function() public payable {
+    success = 111;
+    // Transfer(msg.sender);
+    // require(msg.sender != address(0));
+    // require(false);
     if (!isConfirmed(msg.sender)) {   //to make sure it's unique
       confirmedAddresses.push(msg.sender);
     }
