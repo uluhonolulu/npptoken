@@ -37,7 +37,7 @@ contract NppToken is StandardToken, Ownable {
 uint public success;
   //override the fallback function to ensure we don't accept ether
   function() public payable {
-      success = 111;
+      revert();
   }
 }
 
@@ -61,13 +61,12 @@ contract CrowdSale is Ownable {
   /** How many tokens have been distributed */
   uint public tokensAllocatedTotal;
 
-  address[] public confirmedAddresses;
+  mapping (address => bool) public confirmedAddresses;
 
   address[] private handledAddresses;  // the ones we distributed the tokens to
 
   NppToken private token;
 
- uint public success = 666;
 
   /**
    * Create crowdsale contract 
@@ -81,18 +80,27 @@ contract CrowdSale is Ownable {
   }
 
   /**
-   * Send tokens to the investor
-   * @param _investor The investor's address for tokens
-   * @param _amount How many tokens we should send
+   * Check the investor's status. IMPORTANT: Always do this before calling "distribute". 
    */
-  function distribute(address _investor, uint256 _amount) public onlyOwner returns (string) {
-    return "NOT_CONFIRMED";
-    require(_amount > 0);              // No empty buys
-
+  function checkStatus(address _investor) public view onlyOwner returns (string) {
     //verify that the address is confirmed
     if (!isConfirmed(_investor)) {
       return "NOT_CONFIRMED";
     }
+
+    //all checks passed
+    return "OK";
+  }
+  
+
+  /**
+   * Send tokens to the investor
+   * @param _investor The investor's address for tokens
+   * @param _amount How many tokens we should send
+   */
+  function distribute(address _investor, uint256 _amount, bool _force) public onlyOwner returns (string) {
+    return "NOT_CONFIRMED";
+    require(_amount > 0);              // No empty buys
     //verify that we haven't trasferred for this investor yet
     if (isHandled(_investor)) {
       return "DUPLICATE";
@@ -127,22 +135,13 @@ contract CrowdSale is Ownable {
    * The fallback function is used for confirming the user's address
    */
   function() public payable {
-    success = 111;
-    // Transfer(msg.sender);
-    // require(msg.sender != address(0));
-    // require(false);
     if (!isConfirmed(msg.sender)) {   //to make sure it's unique
-      confirmedAddresses.push(msg.sender);
+      confirmedAddresses[msg.sender] = true;
     }
   }
 
   function isConfirmed(address _address) public constant returns (bool) {
-    for (uint index = 0; index < confirmedAddresses.length; index++) {
-      if (confirmedAddresses[index] == _address) {
-        return true;
-      } 
-    }
-    return false;
+    return confirmedAddresses[_address];
   }
 
   function isHandled(address _address) private constant returns (bool) {

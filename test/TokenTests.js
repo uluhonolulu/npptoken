@@ -20,7 +20,6 @@ contract('Crowdsale', ([owner, investor]) => {
 
         it('Owner should own all tokens', async () => {
             var owner = await this.tokenInstance.owner.call();
-            console.log(owner);
             var ownerBalance = await this.tokenInstance.balanceOf(owner);
             let totalSupply = await this.tokenInstance.totalSupply();
             assert.equal(totalSupply.toNumber(), ownerBalance.toNumber());
@@ -31,30 +30,38 @@ contract('Crowdsale', ([owner, investor]) => {
             assert.isFalse(isConfirmed);
         });
 
-        it('Distribute returns "NOT_CONFIRMED"', async () => {
-            //TODO: check status; and throw
-            var result = await this.icoInstance.distribute(investor, 1, {from: owner, gasPrice:gasPrice, gas:gasAmount } );
+        it('CheckStatus returns "NOT_CONFIRMED"', async () => {
+            var status = await this.icoInstance.checkStatus(investor);
+            assert.equal(status, "NOT_CONFIRMED");
+        });
+
+        xit('balance should be equal to initial balance', async () => {
+            var balance = await this.tokenInstance.balanceOf(this.icoInstance.address); //this.icoInstance.getBalance.call();
+            var INITIAL_SUPPLY = await this.tokenInstance.INITIAL_SUPPLY.call();
+            console.log(this.icoInstance.address);
+            var tokenOwner = await this.tokenInstance.owner()
+            console.log(tokenOwner);
+            assert.equal(balance.toString(), INITIAL_SUPPLY.toString());
         });
     });  
     
     describe('After investor sent us 0 ETH', () => {
         beforeEach(async () => {
-            // this.tokenInstance = await token.deployed();
-            // this.icoInstance = await ico.deployed();
-            const result = await this.icoInstance.sendTransaction({ value: 33, from: investor, gas: 300000 });
-            //this.icoInstance.value(1).call()();
-            //var confirmed = await this.icoInstance.confirmedAddresses.call(0);
-            console.log(result);
-
-            //await this.icoInstance.call.value(44)();
+            const result = await this.icoInstance.sendTransaction({ value: 0, from: investor });
+            //console.log(result);
         });
 
         it('her address should be cofirmed', async () => {
-            var success  = await this.icoInstance.success.call();
-            console.log("success: " + success.toString(10));
             var isConfirmed = await this.icoInstance.isConfirmed(investor);
             assert.isTrue(isConfirmed);            
         });
+
+        it('status should be "OK"', async () => {
+            var status = await this.icoInstance.checkStatus(investor);
+            assert.equal(status, "OK");            
+        });
+
+
     });
 });
 
