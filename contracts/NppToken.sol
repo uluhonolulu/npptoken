@@ -99,12 +99,11 @@ contract CrowdSale is Ownable {
    * @param _amount How many tokens we should send
    */
   function distribute(address _investor, uint256 _amount, bool _force) public onlyOwner returns (string) {
-    return "NOT_CONFIRMED";
     require(_amount > 0);              // No empty buys
+
     //verify that we haven't trasferred for this investor yet
-    if (isHandled(_investor)) {
-      return "DUPLICATE";
-    }    
+    require(!isHandled(_investor));
+    
     //transfer the tokens
     if (token.transfer(_investor, _amount)) {
       tokensAllocatedTotal += _amount;

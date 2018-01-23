@@ -1,5 +1,6 @@
 var token = artifacts.require("./NppToken.sol");
 var ico = artifacts.require("./CrowdSale.sol");
+//var expectThrow = require('../node_modules/zeppelin-solidity/test/helpers/expectThrow');
 
 
 //Some default values for gas
@@ -11,8 +12,8 @@ contract('Crowdsale', ([owner, investor]) => {
         this.tokenInstance = await token.deployed();
         this.icoInstance = await ico.deployed(); //await ico.new(this.tokenInstance.address, {from: owner});
     });
-    describe('Initially', () => {
 
+    describe('Initially', () => {
         it('Name should be "Nanopowder Token"', async () => {
             var name = await this.tokenInstance.name.call();
             assert.equal(name, "Nanopowder Token");
@@ -43,6 +44,10 @@ contract('Crowdsale', ([owner, investor]) => {
             console.log(tokenOwner);
             assert.equal(balance.toString(), INITIAL_SUPPLY.toString());
         });
+
+        it('calling "distribute" should throw', async () => {
+            await expectThrow(this.icoInstance.distribute(investor, 1, false));
+        });
     });  
     
     describe('After investor sent us 0 ETH', () => {
@@ -60,9 +65,29 @@ contract('Crowdsale', ([owner, investor]) => {
             var status = await this.icoInstance.checkStatus(investor);
             assert.equal(status, "OK");            
         });
-
-
     });
 });
 
 
+//assertThrow, taken from https://github.com/OpenZeppelin/zeppelin-solidity/blob/master/test/helpers/expectThrow.js
+async function expectThrow (promise) {
+    try {
+      await promise;
+    } catch (error) {
+      // TODO: Check jump destination to destinguish between a throw
+      //       and an actual invalid jump.
+      const invalidOpcode = error.message.search('invalid opcode') >= 0;
+      // TODO: When we contract A calls contract B, and B throws, instead
+      //       of an 'invalid jump', we get an 'out of gas' error. How do
+      //       we distinguish this from an actual out of gas event? (The
+      //       testrpc log actually show an 'invalid jump' event.)
+      const outOfGas = error.message.search('out of gas') >= 0;
+      const revert = error.message.search('revert') >= 0;
+      assert(
+        invalidOpcode || outOfGas || revert,
+        'Expected throw, got \'' + error + '\' instead',
+      );
+      return;
+    }
+    assert.fail('Expected throw not received');
+  };
