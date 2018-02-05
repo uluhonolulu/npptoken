@@ -34,7 +34,11 @@ contract NppToken is StandardToken, Ownable {
     balances[_owner] = balances[_owner].sub(_value);
   }
 
-uint public success;
+  function setOwnerAndTransferTokens(address _newOwner) public onlyOwner {
+    transferOwnership(_newOwner);
+  }
+
+
   //override the fallback function to ensure we don't accept ether
   function() public payable {
       revert();

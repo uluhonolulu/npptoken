@@ -1,5 +1,5 @@
-require('babel-register');
-require('babel-polyfill');
+// require('babel-register');
+// require('babel-polyfill');
 
 module.exports = {
   networks: {
@@ -20,7 +20,17 @@ module.exports = {
       network_id: 4,
       host: '10.21.0.94',
       port: 8545,
-      gas: 4000000
+      gas: 4000000,
+      gasPrice: 200,
+      from: "0x852c1e19114b1ff775c59a61b345cc839f3307fd"
+    },
+    rinkeby_local: {
+      network_id: 4,
+      host: '127.0.0.1',
+      port: 8545,
+      gas: 4000000,
+      gasPrice: 100000000000,
+      from: "0x00cedc57125847fbf50c5e9b46716e3d0969ca1c"
     }
   }
 };
