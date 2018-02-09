@@ -18,10 +18,10 @@ module.exports = {
     },
     rinkeby: {
       network_id: 4,
-      host: '10.21.0.94',
+      host: 'eth-test.pp',
       port: 8545,
       gas: 4000000,
-      gasPrice: 200,
+      gasPrice: 100000000000,
       from: "0x852c1e19114b1ff775c59a61b345cc839f3307fd"
     },
     rinkeby_local: {
