@@ -1,5 +1,5 @@
 pragma solidity ^0.4.18;
-import '../node_modules/zeppelin-solidity/contracts/token/StandardToken.sol';
+import '../node_modules/zeppelin-solidity/contracts/token/ERC20/StandardToken.sol';
 import '../node_modules/zeppelin-solidity/contracts/math/Math.sol';
 import '../node_modules/zeppelin-solidity/contracts/math/SafeMath.sol';
 import '../node_modules/zeppelin-solidity/contracts/ownership/Ownable.sol';
@@ -12,34 +12,42 @@ contract NppToken is StandardToken, Ownable {
   address public contractAddress; //this contract's address
 
   /**
-   * @dev Constructor that gives msg.sender all of existing tokens.
+   * @dev Constructor that gives msg.sender all tokens.
    */
   function NppToken() public {
-    totalSupply = INITIAL_SUPPLY;
+    totalSupply_ = INITIAL_SUPPLY;
     balances[msg.sender] = INITIAL_SUPPLY;
     contractAddress = this;
   }
 
-  //override transfer to ensure we don't receive any tokens
+  
+  /**
+   * @dev override transfer to ensure we don't receive any tokens
+   */
   function transfer(address _to, uint256 _value) public returns (bool) {
     require(_to != contractAddress);
     return super.transfer(_to, _value);
   }
 
   /**
-   * burn investor's tokens
+   * @dev burn investor's tokens
    */
   function burn(address _owner, uint256 _value) public onlyOwner {
     require(_value > 0);
     balances[_owner] = balances[_owner].sub(_value);
   }
 
+  /**
+   * @dev If we upgrade the CrowdSale contract, transfer owner and all remaining tokens to the new version
+   */
   function setOwnerAndTransferTokens(address _newOwner) public onlyOwner {
     transferOwnership(_newOwner);
+    transfer(_newOwner, balances[msg.sender]);
   }
 
-
-  //override the fallback function to ensure we don't accept ether
+  /**
+   * @dev override the fallback function to ensure we don't accept ether
+   */
   function() public payable {
       revert();
   }
@@ -47,17 +55,16 @@ contract NppToken is StandardToken, Ownable {
 
 
 /**
- * Hold tokens for a group investor of investors until the unlock date.
- *
- * After the unlock date the investor can claim their tokens.
+ * The contract that manages ICO
  *
  * Steps
  *
  * - Prepare a list of investors/amounts for token allocation
- * - Deploy this contract, with the sum to tokens to be distributed, from the owner account
- * - Move tokensToBeAllocated in this contract usign StandardToken.transfer()
+ * - Deploy this contract from the owner account; the initial token supply will belong to this contract
  * - Investor confirms her address by sending 0.0ETH to this address
- * - Call distribute for investor to give her the tokens
+ * - Call checkStatus(address) to make sure we can send the tokens to this investor (to make sure the address is confirmed)
+ * - Call distribute() for investor to give her the tokens
+ * - Call burn() to burn one's tokens (to change them for shares)
  *
  */
 contract CrowdSale is Ownable {
@@ -65,9 +72,9 @@ contract CrowdSale is Ownable {
   /** How many tokens have been distributed */
   uint public tokensAllocatedTotal;
 
-  mapping (address => bool) public confirmedAddresses;
+  mapping (address => bool) private confirmedAddresses; //list of confirmed addresses
 
-  address[] private handledAddresses;  // the ones we distributed the tokens to
+  mapping (address => bool) private handledAddresses;   //list of addresses that have got the tokens
 
   NppToken private token;
 
@@ -92,6 +99,11 @@ contract CrowdSale is Ownable {
       return "NOT_CONFIRMED";
     }
 
+    //verify that we haven't trasferred for this investor yet
+    if (isHandled(_investor)) {
+      return "DISTRIBUTED";
+    }
+
     //all checks passed
     return "OK";
   }
@@ -105,17 +117,16 @@ contract CrowdSale is Ownable {
   function distribute(address _investor, uint256 _amount, bool _force) public onlyOwner returns (string) {
     require(_amount > 0);              // No empty buys
 
+    //verify the address is confirmed
+    require(isConfirmed(_investor) || _force);
+
     //verify that we haven't trasferred for this investor yet
-    require(!isHandled(_investor));
+    require(!isHandled(_investor) || _force);
     
     //transfer the tokens
-    if (token.transfer(_investor, _amount)) {
-      tokensAllocatedTotal += _amount;
-      handledAddresses.push(_investor);      
-      return "OK";
-    } else {
-      return "TRANSFER_FAILED"; //perhaps not enough tokens left?
-    }
+    assert (token.transfer(_investor, _amount));
+
+    handledAddresses[_investor] = true;
   }
 
   /**
@@ -147,12 +158,7 @@ contract CrowdSale is Ownable {
     return confirmedAddresses[_address];
   }
 
-  function isHandled(address _address) private constant returns (bool) {
-    for (uint index = 0; index < handledAddresses.length; index++) {
-      if (handledAddresses[index] == _address) {
-        return true;
-      } 
-    }
-    return false;
+  function isHandled(address _address) public constant returns (bool) {
+    return handledAddresses[_address];
   }
 }

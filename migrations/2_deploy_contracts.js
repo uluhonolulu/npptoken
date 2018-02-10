@@ -14,7 +14,7 @@
         console.log("Current token owner: " + owner);
         console.log("token.address: " + token.address);
 
-        await token.transferOwnership(CrowdSale.address);
+        await token.setOwnerAndTransferTokens(CrowdSale.address);
         owner = await token.owner.call();
         console.log("New token owner: " + owner);
         

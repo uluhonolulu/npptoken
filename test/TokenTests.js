@@ -1,5 +1,5 @@
-var token = artifacts.require("./NppToken.sol");
-var ico = artifacts.require("./CrowdSale.sol");
+var NppToken = artifacts.require("./NppToken.sol");
+var CrowdSale = artifacts.require("./CrowdSale.sol");
 //var expectThrow = require('../node_modules/zeppelin-solidity/test/helpers/expectThrow');
 
 
@@ -9,14 +9,21 @@ var gasPrice = 20000000000;
 
 contract('Crowdsale', ([owner, investor]) => {
     beforeEach(async () => {
-        this.tokenInstance = await token.deployed();
-        this.icoInstance = await ico.deployed(); //await ico.new(this.tokenInstance.address, {from: owner});
+        //redeploy every time before testing
+        this.tokenInstance = await NppToken.new();
+        this.icoInstance = await CrowdSale.new(this.tokenInstance.address, {from: owner}); //await ico.new(this.tokenInstance.address, {from: owner});
+        await this.tokenInstance.setOwnerAndTransferTokens(this.icoInstance.address);
     });
 
     describe('Initially', () => {
         it('Name should be "Nanopowder Token"', async () => {
             var name = await this.tokenInstance.name.call();
             assert.equal(name, "Nanopowder Token");
+        });
+
+        it('Token\'s owner should be CrowdSale', async () => {
+            var owner = await this.tokenInstance.owner.call();
+            assert.equal(owner, this.icoInstance.address);
         });
 
         it('Owner should own all tokens', async () => {
@@ -39,15 +46,19 @@ contract('Crowdsale', ([owner, investor]) => {
         it('balance should be equal to initial balance', async () => {
             var balance = await this.tokenInstance.balanceOf(this.icoInstance.address); //this.icoInstance.getBalance.call();
             var INITIAL_SUPPLY = await this.tokenInstance.INITIAL_SUPPLY.call();
-            console.log("icoInstance.address: " + this.icoInstance.address);
+            //console.log("icoInstance.address: " + this.icoInstance.address);
             var tokenOwner = await this.tokenInstance.owner()
-            console.log("tokenOwner: " + tokenOwner);
+            //console.log("tokenOwner: " + tokenOwner);
             assert.equal(tokenOwner, this.icoInstance.address);
             //assert.equal(balance.toString(), INITIAL_SUPPLY.toString());
         });
 
         it('calling "distribute" should throw', async () => {
             await expectThrow(this.icoInstance.distribute(investor, 1, false));
+        });
+
+        it('can force distribution', async () => {
+            await this.icoInstance.distribute(investor, 1, true);
         });
     });  
     
@@ -57,7 +68,7 @@ contract('Crowdsale', ([owner, investor]) => {
             //console.log(result);
         });
 
-        it('her address should be cofirmed', async () => {
+        it('her address should be confirmed', async () => {
             var isConfirmed = await this.icoInstance.isConfirmed(investor);
             assert.isTrue(isConfirmed);            
         });
@@ -65,6 +76,32 @@ contract('Crowdsale', ([owner, investor]) => {
         it('status should be "OK"', async () => {
             var status = await this.icoInstance.checkStatus(investor);
             assert.equal(status, "OK");            
+        });
+
+        it('can distribute', async () => {
+            await this.icoInstance.distribute(investor, 1, false);           
+        });
+    });
+
+    describe('After distributing tokens', () => {
+        beforeEach(async () => {
+            //confirm address
+            await this.icoInstance.sendTransaction({ value: 0, from: investor });
+            //distribute tokens
+            await this.icoInstance.distribute(investor, 1, false); 
+        });
+
+        it('status should be "DISTRIBUTED"', async () => {
+            var status = await this.icoInstance.checkStatus(investor);
+            assert.equal(status, "DISTRIBUTED");            
+        });
+        
+        it('another distribution should fail', async() => {
+           await expectThrow(this.icoInstance.distribute(investor, 1, false));            
+        });
+
+        it('can force distribution', async () => {
+            await this.icoInstance.distribute(investor, 1, true);
         });
     });
 });
