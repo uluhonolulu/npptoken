@@ -1,7 +1,9 @@
 **NPP Token**
+
 This is a standard ERC20 token, with an additional method for transferring ownership and the remaining tokens
 
-##CrowdSale
+**CrowdSale**
+
 This is the contract than manages all ICO related activities
 
 The idea is that during the ICO we don't involve smart contracts; what we do is collect the addresses of investors and their token amounts.
